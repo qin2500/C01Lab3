@@ -4,7 +4,7 @@ import cors from "cors";
 
 const app = express();
 const PORT = 4000;
-const mongoURL = "mongodb://localhost:27017";
+const mongoURL = "mongodb://127.0.0.1:27017";
 const dbName = "quirknotes";
 
 // Connect to MongoDB
@@ -109,39 +109,55 @@ app.delete("/deleteNote/:noteId", express.json(), async (req, res) => {
 app.patch("/patchNote/:noteId", express.json(), async (req, res) => {
   try {
     // Basic param checking
+    const { title, content } = req.body;
+    if (!title || !content) {
+      return res
+        .status(400)
+        .json({ error: "Title and content are both required." });
+    }
+
     const noteId = req.params.noteId;
     if (!ObjectId.isValid(noteId)) {
       return res.status(400).json({ error: "Invalid note ID." });
     }
+      // Find note with given ID
+      const collection = db.collection(COLLECTIONS.notes);
+      const data = await collection.findOne({
+        _id: new ObjectId(noteId),
+      });
 
-    // Basic body request check
-    const { title, content } = req.body;
-    if (!title && !content) {
-      return res
-        .status(400)
-        .json({ error: "Must have at least one of title or content." });
-    }
-
-    
-    // Find note with given ID
-    const collection = db.collection(COLLECTIONS.notes);
-    const data = await collection.updateOne({
-      username: decoded.username,
-      _id: new ObjectId(noteId),
-    }, {
-      $set: {
-        ...(title && {title}),
-        ...(content && {content})
+      if (!data) {
+        return res
+          .status(404)
+          .json({ error: "Unable to find note with given ID." });
       }
-    });
 
-    if (data.matchedCount === 0) {
+      // Update note with new content and title
+      const updatedNote = await collection.updateOne(
+        { "_id": new ObjectId(noteId) },
+        { $set: { content: content, title: title } }
+      );
+
+      res.json({ response: "Note updated successfully." });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete all
+app.delete("/deleteAllNotes", express.json(), async (req, res) => {
+  try {
+    const collection = db.collection(COLLECTIONS.notes);
+    const data = await collection.deleteMany({});
+
+
+    if (data.deletedCount === 0) {
       return res
         .status(404)
         .json({ error: "Unable to find note with given ID." });
     }
-    res.json({ response: `Document with ID ${noteId} patched.` });
+    res.json({ response: `All Docs Deleted.` });
   } catch (error) {
-    res.status(500).json({error: error.message})
+    res.status(500).json({ error: error.message });
   }
 })
